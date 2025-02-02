@@ -1,9 +1,3 @@
-// app.js
-/**
- * Express server configuration
- * Connects to MongoDB, sets up middleware, and defines routes
- */
-
 import express from 'express';
 import mongoose from 'mongoose';
 import costRoutes from './routes/costRoutes.js';
@@ -23,7 +17,9 @@ mongoose.connect(URL).then(() => console.log("Connected to Database")).catch((er
 app.use('/api', costRoutes);
 app.use('/api', userRoutes);
 
-// Start server
-app.listen(PORT, () => console.log(`Running on port ${PORT}`));
+// Only start the server if this file is run directly
+if (process.env.NODE_ENV !== 'test') {
+    app.listen(PORT, () => console.log(`Running on port ${PORT}`));
+}
 
 export default app;

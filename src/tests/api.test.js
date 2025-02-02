@@ -41,8 +41,7 @@ describe('Cost Manager API Tests', () => {
                 category: "health",
                 sum: 100,
                 created_at: new Date('2025-02-15')
-            }
-        ]);
+            }]);
     });
 
     afterEach(async () => {
@@ -53,9 +52,7 @@ describe('Cost Manager API Tests', () => {
     afterAll(async () => {
         await mongoose.disconnect();
         await mongoServer.stop();
-        if (server) {
-            server.close();
-        }
+        await new Promise((resolve) => server.close(resolve));
     });
 
     describe('GET /api/report', () => {
