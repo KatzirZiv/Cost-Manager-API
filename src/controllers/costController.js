@@ -8,21 +8,24 @@ import Cost from '../models/costs.js';
 import User from '../models/users.js';
 
 export const addCost = async (req, res) => {
-  try {
-    const { description, category, sum, userid, created_at } = req.body;
-    const allowedCategories = ['food', 'health', 'housing', 'sport', 'education'];
-    if (!allowedCategories.includes(category)) {
-      return res.status(400).json({ error: 'Invalid category' });
+    try {
+        const { description, category, sum, userid, created_at } = req.body;
+
+        if (!description || !category || !sum || !userid) {
+            return res.status(400).json({ error: 'Missing required fields' });
+        }
+
+        const allowedCategories = ['food', 'health', 'housing', 'sport', 'education'];
+        if (!allowedCategories.includes(category)) {
+            return res.status(400).json({ error: 'Invalid category' });
+        }
+
+        const newCost = new Cost({ description, category, sum, userid, created_at: Date.now() });
+        const savedCost = await newCost.save();
+        res.status(201).json(savedCost);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
-    if (!description || !category || !sum || !userid) {
-      return res.status(400).json({ error: 'Missing required fields' });
-    }
-    const newCost = new Cost({ description, category, sum, userid, created_at: Date.now() });
-    const savedCost = await newCost.save();
-    res.status(201).json(savedCost);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
 };
 
 export const getReport = async (req, res) => {

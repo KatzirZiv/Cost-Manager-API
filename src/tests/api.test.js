@@ -29,12 +29,12 @@ describe('Cost Manager API Tests', () => {
             marital_status: "single"
         });
         await Cost.create([{
-                userid: "123123",
-                description: "Test Food",
-                category: "food",
-                sum: 50,
-                created_at: new Date('2025-02-15')
-            },
+            userid: "123123",
+            description: "Test Food",
+            category: "food",
+            sum: 50,
+            created_at: new Date('2025-02-15')
+        },
             {
                 userid: "123123",
                 description: "Test Health",
@@ -102,7 +102,7 @@ describe('Cost Manager API Tests', () => {
                 .post('/api/add')
                 .send(newCost);
 
-            expect(response.status).toBe(201);  // Changed to 201 to indicate resource creation
+            expect(response.status).toBe(201);
             expect(response.body).toHaveProperty('description', 'New Cost');
             expect(response.body).toHaveProperty('sum', 75);
             expect(response.body).toHaveProperty('category', 'food');
@@ -113,7 +113,7 @@ describe('Cost Manager API Tests', () => {
             const invalidCost = {
                 userid: "123123",
                 description: "Invalid Category",
-                category: "invalid",  // Invalid category
+                category: "invalid",
                 sum: 75
             };
 
@@ -122,13 +122,14 @@ describe('Cost Manager API Tests', () => {
                 .send(invalidCost);
 
             expect(response.status).toBe(400);
-            expect(response.body).toHaveProperty('message', 'Invalid category');
+            expect(response.body).toHaveProperty('error', 'Invalid category');
         });
 
         it('should return 400 for missing required fields', async () => {
             const incompleteCost = {
                 userid: "123123",
-                description: "Incomplete"  // Missing category and sum
+                description: "Incomplete",
+                category: "food"
             };
 
             const response = await request(app)
@@ -136,25 +137,25 @@ describe('Cost Manager API Tests', () => {
                 .send(incompleteCost);
 
             expect(response.status).toBe(400);
-            expect(response.body).toHaveProperty('message', 'Missing required fields');
+            expect(response.body).toHaveProperty('error', 'Missing required fields');
         });
     });
 
-    describe('GET /api/users/:id', () => {
+    describe('GET /api/:id', () => {  // Changed from /api/users/:id to /api/:id
         it('should return user details with total costs', async () => {
             const response = await request(app)
-                .get('/api/users/123123');
+                .get('/api/123123');  // Updated path
 
             expect(response.status).toBe(200);
             expect(response.body).toHaveProperty('first_name', 'mosh');
             expect(response.body).toHaveProperty('last_name', 'israeli');
             expect(response.body).toHaveProperty('id', '123123');
-            expect(response.body).toHaveProperty('total', 150); // 50 + 100 = 150
+            expect(response.body).toHaveProperty('total', 150);
         });
 
         it('should return 404 for non-existent user', async () => {
             const response = await request(app)
-                .get('/api/users/999999');
+                .get('/api/999999');  // Updated path
 
             expect(response.status).toBe(404);
             expect(response.body).toHaveProperty('error', 'User not found');
