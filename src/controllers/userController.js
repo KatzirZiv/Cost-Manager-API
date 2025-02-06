@@ -13,16 +13,11 @@ export const getUserDetails = async (req, res) => {
             return res.status(404).json({ error: 'User not found' });
         }
 
-        const totalCosts = await Cost.aggregate([
-            { $match: { userid: user.id } },
-            { $group: { _id: null, total: { $sum: '$sum' } } }
-        ]);
-
         res.status(200).json({
             id: user.id,
             first_name: user.first_name,
             last_name: user.last_name,
-            total: totalCosts[0]?.total || 0
+            total: user.total_costs
         });
     } catch (err) {
         res.status(500).json({ error: err.message });

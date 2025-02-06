@@ -6,8 +6,12 @@
 
 import Cost from '../models/costs.js';
 import User from '../models/users.js';
+import mongoose from "mongoose";
 
 export const addCost = async (req, res) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
     try {
         const { description, category, sum, userid, created_at } = req.body;
 
@@ -20,86 +24,76 @@ export const addCost = async (req, res) => {
             return res.status(400).json({ error: 'Invalid category' });
         }
 
-        const newCost = new Cost({ description, category, sum, userid, created_at: Date.now() });
-        const savedCost = await newCost.save();
-        res.status(201).json(savedCost);
+        const newCost = new Cost({
+            description,
+            category,
+            sum,
+            userid,
+            created_at: created_at || Date.now()
+        });
+
+        await newCost.save({ session });
+
+        await User.findOneAndUpdate(
+            { id: userid },
+            { $inc: { total_costs: sum } },
+            { session }
+        );
+
+        await session.commitTransaction();
+        res.status(201).json(newCost);
     } catch (err) {
+        await session.abortTransaction();
         res.status(500).json({ error: err.message });
+    } finally {
+        session.endSession();
     }
 };
 
 export const getReport = async (req, res) => {
-  try {
-      // Extract query parameters
-      const { id, year, month } = req.query;
+    try {
+        const { id, year, month } = req.query;
 
-      // Validate required parameters
-      if (!id || !year || !month) {
-          return res.status(400).json({
-              error: 'Missing required parameters. Please provide id, year, and month.'
-          });
-      }
+        if (!id || !year || !month) {
+            return res.status(400).json({
+                error: 'Missing required parameters'
+            });
+        }
 
-      // Convert parameters to appropriate types
-      const userId = id;
-      const yearNum = parseInt(year);
-      const monthNum = parseInt(month);
+        const yearNum = parseInt(year);
+        const monthNum = parseInt(month);
 
-      // Validate year and month
-      if (isNaN(yearNum) || isNaN(monthNum) || 
-          monthNum < 1 || monthNum > 12) {
-          return res.status(400).json({
-              error: 'Invalid year or month format'
-          });
-      }
+        if (isNaN(yearNum) || isNaN(monthNum) || monthNum < 1 || monthNum > 12) {
+            return res.status(400).json({ error: 'Invalid year or month format' });
+        }
 
-      // Calculate start and end dates for the specified month
-      const startDate = new Date(yearNum, monthNum - 1, 1);
-      const endDate = new Date(yearNum, monthNum, 0, 23, 59, 59, 999);
+        const startDate = new Date(yearNum, monthNum - 1, 1);
+        const endDate = new Date(yearNum, monthNum, 0, 23, 59, 59, 999);
 
-      // Query the database for costs
-      const costs = await Cost.find({
-          userid: userId,
-          created_at: { $gte: startDate, $lte: endDate }
-      });
+        const costs = await Cost.find({
+            userid: id,
+            created_at: { $gte: startDate, $lte: endDate }
+        });
 
-      // Initialize categories object
-      const categories = {
-          food: [],
-          health: [],
-          housing: [],
-          sport: [],
-          education: []
-      };
+        const categories = ['food', 'health', 'housing', 'sport', 'education'];
+        const costsArray = categories.map(category => ({
+            [category]: costs
+                .filter(cost => cost.category === category)
+                .map(cost => ({
+                    sum: cost.sum,
+                    description: cost.description,
+                    day: new Date(cost.created_at).getDate()
+                }))
+        }));
 
-      // Group costs by category
-      costs.forEach(cost => {
-          if (categories.hasOwnProperty(cost.category)) {
-              categories[cost.category].push({
-                  sum: cost.sum,
-                  description: cost.description,
-                  day: new Date(cost.created_at).getDate()
-              });
-          }
-      });
+        res.json({
+            userid: id,
+            year: yearNum,
+            month: monthNum,
+            costs: costsArray
+        });
 
-      // Format response
-      const response = {
-          userid: userId,
-          year: yearNum,
-          month: monthNum,
-          costs: Object.keys(categories).map(category => ({
-              [category]: categories[category]
-          }))
-      };
-
-      res.json(response);
-
-  } catch (error) {
-      console.error('Error generating monthly report:', error);
-      res.status(500).json({
-          error: 'Internal server error while generating monthly report',
-          details: error.message
-      });
-  }
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 };

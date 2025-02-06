@@ -4,7 +4,7 @@ import { getUserDetails,getDevelopers,createUser } from '../controllers/userCont
 const router = express.Router();
 
 router.get('/about', getDevelopers);
-router.get('/:id', getUserDetails);
-router.post('/adduser', createUser);
+router.get('/users/:id', getUserDetails);
+router.post('/users/adduser', createUser);
 
 export default router;

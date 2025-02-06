@@ -26,7 +26,8 @@ describe('Cost Manager API Tests', () => {
             first_name: "mosh",
             last_name: "israeli",
             birthday: new Date('1990-01-01'),
-            marital_status: "single"
+            marital_status: "single",
+            total_costs: 150
         });
         await Cost.create([{
             userid: "123123",
@@ -138,10 +139,10 @@ describe('Cost Manager API Tests', () => {
         });
     });
 
-    describe('GET /api/:id', () => {  // Changed from /api/users/:id to /api/:id
+    describe('GET /api/:id', () => {
         it('should return user details with total costs', async () => {
             const response = await request(app)
-                .get('/api/123123');  // Updated path
+                .get('/api/users/123123');
 
             expect(response.status).toBe(200);
             expect(response.body).toHaveProperty('first_name', 'mosh');
@@ -152,7 +153,7 @@ describe('Cost Manager API Tests', () => {
 
         it('should return 404 for non-existent user', async () => {
             const response = await request(app)
-                .get('/api/999999');  // Updated path
+                .get('/api/users/999999');
 
             expect(response.status).toBe(404);
             expect(response.body).toHaveProperty('error', 'User not found');
