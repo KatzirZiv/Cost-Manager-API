@@ -29,7 +29,7 @@ UserSchema.statics.computeTotalCosts = async function(userId) {
     return result.length ? result[0].total : 0;
 };
 
-// Keep the original updateTotalCosts method for test compatibility
+
 UserSchema.methods.updateTotalCosts = async function() {
     this.total_costs = await this.constructor.computeTotalCosts(this.id);
     return this.save();
