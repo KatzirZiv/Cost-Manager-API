@@ -1,12 +1,27 @@
-// controllers/costController.js
 /**
- * Controller for handling cost-related operations
- * Includes functions for adding costs and generating reports
+ * @fileoverview Controller handling cost-related operations
+ * @module controllers/costController
+ * @requires ../models/costs
+ * @requires ../models/users
+ * @requires mongoose
  */
-
 import Cost from '../models/costs.js';
 import User from '../models/users.js';
 import mongoose from "mongoose";
+/**
+ * Adds a new cost entry
+ * @async
+ * @function addCost
+ * @param {Object} req - Express request object
+ * @param {Object} req.body - Request body
+ * @param {string} req.body.description - Cost description
+ * @param {string} req.body.category - Cost category
+ * @param {number} req.body.sum - Cost amount
+ * @param {string} req.body.userid - User ID
+ * @param {Date} [req.body.created_at] - Creation date
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>}
+ */
 
 export const addCost = async (req, res) => {
     const session = await mongoose.startSession();
@@ -49,6 +64,18 @@ export const addCost = async (req, res) => {
         session.endSession();
     }
 };
+/**
+ * Generates a cost report for a specific month
+ * @async
+ * @function getReport
+ * @param {Object} req - Express request object
+ * @param {Object} req.query - Query parameters
+ * @param {string} req.query.id - User ID
+ * @param {string} req.query.year - Year for report
+ * @param {string} req.query.month - Month for report
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>}
+ */
 
 export const getReport = async (req, res) => {
     try {
@@ -66,6 +93,10 @@ export const getReport = async (req, res) => {
         if (isNaN(yearNum) || isNaN(monthNum) || monthNum < 1 || monthNum > 12) {
             return res.status(400).json({ error: 'Invalid year or month format' });
         }
+
+        // Using computed properties to get totals
+        const monthlyTotal = await Cost.getMonthlyTotal(id, yearNum, monthNum);
+        const categoryTotals = await Cost.getCategoryTotals(id, yearNum, monthNum);
 
         const startDate = new Date(yearNum, monthNum - 1, 1);
         const endDate = new Date(yearNum, monthNum, 0, 23, 59, 59, 999);
@@ -90,7 +121,11 @@ export const getReport = async (req, res) => {
             userid: id,
             year: yearNum,
             month: monthNum,
-            costs: costsArray
+            costs: costsArray,
+            summary: {
+                monthlyTotal,
+                categoryTotals
+            }
         });
 
     } catch (error) {

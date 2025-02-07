@@ -8,6 +8,7 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 describe('Cost Manager API Tests', () => {
     let mongoServer;
     let server;
+    let testUser;
 
     beforeAll(async () => {
         mongoServer = await MongoMemoryServer.create();
@@ -21,28 +22,34 @@ describe('Cost Manager API Tests', () => {
     beforeEach(async () => {
         await Cost.deleteMany({});
         await User.deleteMany({});
-        await User.create({
+        // Create test user
+        testUser = await User.create({
             id: "123123",
             first_name: "mosh",
             last_name: "israeli",
             birthday: new Date('1990-01-01'),
             marital_status: "single",
-            total_costs: 150
+            total_costs: 0
         });
-        await Cost.create([{
-            userid: "123123",
-            description: "Test Food",
-            category: "food",
-            sum: 50,
-            created_at: new Date('2025-02-15')
-        },
+        // Create initial costs
+        await Cost.create([
+            {
+                userid: "123123",
+                description: "Test Food",
+                category: "food",
+                sum: 50,
+                created_at: new Date('2025-02-15')
+            },
             {
                 userid: "123123",
                 description: "Test Health",
                 category: "health",
                 sum: 100,
                 created_at: new Date('2025-02-15')
-            }]);
+            }
+        ]);
+        // Update user's total costs using computed pattern
+        await testUser.updateTotalCosts();
     });
 
     afterEach(async () => {
@@ -56,8 +63,51 @@ describe('Cost Manager API Tests', () => {
         await new Promise((resolve) => server.close(resolve));
     });
 
+    describe('Computed Pattern Tests', () => {
+        it('should correctly compute total costs for user', async () => {
+            const user = await User.findOne({ id: "123123" });
+            expect(user.total_costs).toBe(150);
+        });
+
+        it('should update total costs when adding new cost', async () => {
+            const newCost = {
+                userid: "123123",
+                description: "New Cost",
+                category: "food",
+                sum: 75
+            };
+
+            await request(app)
+                .post('/api/add')
+                .send(newCost);
+
+            const user = await User.findOne({ id: "123123" });
+            expect(user.total_costs).toBe(225);
+        });
+
+        it('should compute correct monthly totals', async () => {
+            const response = await request(app)
+                .get('/api/report')
+                .query({
+                    id: '123123',
+                    year: '2025',
+                    month: '2'
+                });
+
+            expect(response.status).toBe(200);
+            expect(response.body.summary.monthlyTotal).toBe(150);
+            expect(response.body.summary.categoryTotals).toEqual({
+                food: 50,
+                health: 100,
+                housing: 0,
+                sport: 0,
+                education: 0
+            });
+        });
+    });
+
     describe('GET /api/report', () => {
-        it('should return monthly report for valid input', async () => {
+        it('should return monthly report with computed totals', async () => {
             const response = await request(app)
                 .get('/api/report')
                 .query({
@@ -70,6 +120,9 @@ describe('Cost Manager API Tests', () => {
             expect(response.body).toHaveProperty('userid', '123123');
             expect(response.body).toHaveProperty('year', 2025);
             expect(response.body).toHaveProperty('month', 2);
+            expect(response.body).toHaveProperty('summary');
+            expect(response.body.summary).toHaveProperty('monthlyTotal');
+            expect(response.body.summary).toHaveProperty('categoryTotals');
 
             const foodCategory = response.body.costs.find(
                 item => Object.keys(item)[0] === 'food'
@@ -88,7 +141,7 @@ describe('Cost Manager API Tests', () => {
     });
 
     describe('POST /api/add', () => {
-        it('should add a new cost item successfully', async () => {
+        it('should add a new cost item and update total costs', async () => {
             const newCost = {
                 userid: "123123",
                 description: "New Cost",
@@ -105,6 +158,9 @@ describe('Cost Manager API Tests', () => {
             expect(response.body).toHaveProperty('sum', 75);
             expect(response.body).toHaveProperty('category', 'food');
             expect(response.body).toHaveProperty('created_at');
+
+            const user = await User.findOne({ id: "123123" });
+            expect(user.total_costs).toBe(225);
         });
 
         it('should return 400 for invalid category', async () => {
@@ -139,7 +195,7 @@ describe('Cost Manager API Tests', () => {
         });
     });
 
-    describe('GET /api/:id', () => {
+    describe('GET /api/users/:id', () => {
         it('should return user details with total costs', async () => {
             const response = await request(app)
                 .get('/api/users/123123');

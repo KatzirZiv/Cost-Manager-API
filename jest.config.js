@@ -1,10 +1,10 @@
-// jest.config.mjs
 export default {
     transform: {
         '^.+\\.js$': 'babel-jest',
     },
     testEnvironment: 'node',
-    testMatch: ['**/*.test.js'],
+    moduleFileExtensions: ['js', 'json'],
+    testMatch: ['**/tests/**/*.test.js'],
     setupFilesAfterEnv: ['./src/tests/setup.js'],
     verbose: true,
     forceExit: true,
