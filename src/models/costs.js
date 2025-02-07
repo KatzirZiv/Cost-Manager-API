@@ -13,7 +13,16 @@ const CostSchema = new mongoose.Schema({
         enum: ['food', 'health', 'housing', 'sport', 'education'],
         required: true
     },
-    sum: { type: Number, required: true },
+    sum: {
+        type: Number,
+        required: true,
+        validate: {
+            validator: function(v) {
+                return v > 0;
+            },
+            message: 'Sum must be positive'
+        }
+    },
     userid: { type: String, required: true, index: true },
     created_at: { type: Date, default: Date.now, index: true }
 });
