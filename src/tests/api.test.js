@@ -3,34 +3,33 @@ import request from 'supertest';
 import app from '../app.js';
 import Cost from '../models/costs.js';
 import User from '../models/users.js';
-import { MongoMemoryServer } from 'mongodb-memory-server';
+
+// Use the actual MongoDB connection string
+const URL = "mongodb+srv://katzirziv:CrCSJlK46P4jJl3g@cluster0.pgid0.mongodb.net/cost-manager";
 
 describe('Cost Manager API Tests', () => {
-    let mongoServer;
-    let server;
-    let testUser;
-
     beforeAll(async () => {
-        mongoServer = await MongoMemoryServer.create();
-        const uri = mongoServer.getUri();
-        if (mongoose.connection.readyState === 0) {
-            await mongoose.connect(uri, { useNewUrlParser: true, useUnifiedTopology: true });
-        }
-        server = app.listen(4000);
+        // Connect to the actual MongoDB database
+        await mongoose.connect(URL, {
+            useNewUrlParser: true,
+            useUnifiedTopology: true
+        });
     });
 
     beforeEach(async () => {
-        await Cost.deleteMany({});
-        await User.deleteMany({});
+        // Clear existing data for the test user
+        await User.deleteMany({ id: "123123" });
+        await Cost.deleteMany({ userid: "123123" });
+
         // Create test user
-        testUser = await User.create({
+        await User.create({
             id: "123123",
             first_name: "mosh",
             last_name: "israeli",
             birthday: new Date('1990-01-01'),
-            marital_status: "single",
-            total_costs: 0
+            marital_status: "single"
         });
+
         // Create initial costs
         await Cost.create([
             {
@@ -48,44 +47,47 @@ describe('Cost Manager API Tests', () => {
                 created_at: new Date('2025-02-15')
             }
         ]);
-        // Update user's total costs using computed pattern
-        await testUser.updateTotalCosts();
     });
 
-    afterEach(async () => {
-        await Cost.deleteMany({});
-        await User.deleteMany({});
+    it('ensures test user and costs are set up', async () => {
+        // Verify user exists
+        const user = await User.findOne({ id: "123123" });
+        expect(user).toBeTruthy();
+
+        // Verify costs exist
+        const costs = await Cost.find({ userid: "123123" });
+        expect(costs.length).toBe(2);
     });
 
     afterAll(async () => {
+        // Disconnect from the database
         await mongoose.disconnect();
-        await mongoServer.stop();
-        await new Promise((resolve) => server.close(resolve));
     });
-
     describe('Computed Pattern Tests', () => {
-        it('should correctly compute total costs for user', async () => {
-            const user = await User.findOne({ id: "123123" });
-            expect(user.total_costs).toBe(150);
+        it('should correctly compute total costs for user in a specific month', async () => {
+            // Directly query the database to check total costs
+            const totalCosts = await Cost.aggregate([
+                {
+                    $match: {
+                        userid: "123123",
+                        created_at: {
+                            $gte: new Date('2025-02-01'),
+                            $lte: new Date('2025-02-29')
+                        }
+                    }
+                },
+                {
+                    $group: {
+                        _id: null,
+                        total: { $sum: "$sum" }
+                    }
+                }
+            ]);
+
+            expect(totalCosts[0].total).toBe(150);
         });
 
-        it('should update total costs when adding new cost', async () => {
-            const newCost = {
-                userid: "123123",
-                description: "New Cost",
-                category: "food",
-                sum: 75
-            };
-
-            await request(app)
-                .post('/api/add')
-                .send(newCost);
-
-            const user = await User.findOne({ id: "123123" });
-            expect(user.total_costs).toBe(225);
-        });
-
-        it('should compute correct monthly totals', async () => {
+        it('should compute correct monthly totals in report', async () => {
             const response = await request(app)
                 .get('/api/report')
                 .query({
@@ -96,6 +98,7 @@ describe('Cost Manager API Tests', () => {
 
             expect(response.status).toBe(200);
             expect(response.body.summary.monthlyTotal).toBe(150);
+            expect(response.body.summary.totalCosts).toBe(150);
             expect(response.body.summary.categoryTotals).toEqual({
                 food: 50,
                 health: 100,
@@ -123,6 +126,7 @@ describe('Cost Manager API Tests', () => {
             expect(response.body).toHaveProperty('summary');
             expect(response.body.summary).toHaveProperty('monthlyTotal');
             expect(response.body.summary).toHaveProperty('categoryTotals');
+            expect(response.body.summary).toHaveProperty('totalCosts', 150);
 
             const foodCategory = response.body.costs.find(
                 item => Object.keys(item)[0] === 'food'
@@ -137,11 +141,25 @@ describe('Cost Manager API Tests', () => {
                 .query({ id: '123123', year: '2025' });
 
             expect(response.status).toBe(400);
+            expect(response.body).toHaveProperty('error', 'Validation failed');
+        });
+
+        it('should return 404 when user does not exist', async () => {
+            const response = await request(app)
+                .get('/api/report')
+                .query({
+                    id: '999999',
+                    year: '2025',
+                    month: '2'
+                });
+
+            expect(response.status).toBe(404);
+            expect(response.body).toHaveProperty('error', 'User not found');
         });
     });
 
     describe('POST /api/add', () => {
-        it('should add a new cost item and update total costs', async () => {
+        it('should add a new cost item', async () => {
             const newCost = {
                 userid: "123123",
                 description: "New Cost",
@@ -159,8 +177,26 @@ describe('Cost Manager API Tests', () => {
             expect(response.body).toHaveProperty('category', 'food');
             expect(response.body).toHaveProperty('created_at');
 
-            const user = await User.findOne({ id: "123123" });
-            expect(user.total_costs).toBe(225);
+            // Verify total costs for the specific month
+            const totalCosts = await Cost.aggregate([
+                {
+                    $match: {
+                        userid: "123123",
+                        created_at: {
+                            $gte: new Date('2025-02-01'),
+                            $lte: new Date('2025-02-29')
+                        }
+                    }
+                },
+                {
+                    $group: {
+                        _id: null,
+                        total: { $sum: "$sum" }
+                    }
+                }
+            ]);
+
+            expect(totalCosts[0].total).toBe(225);
         });
 
         it('should return 400 for invalid category', async () => {
@@ -193,10 +229,26 @@ describe('Cost Manager API Tests', () => {
             expect(response.status).toBe(400);
             expect(response.body).toHaveProperty('error', 'Missing required fields');
         });
+
+        it('should return 400 for zero or negative sum', async () => {
+            const invalidCost = {
+                userid: "123123",
+                description: "Invalid Sum",
+                category: "food",
+                sum: 0
+            };
+
+            const response = await request(app)
+                .post('/api/add')
+                .send(invalidCost);
+
+            expect(response.status).toBe(400);
+            expect(response.body).toHaveProperty('error', 'Missing required fields');
+        });
     });
 
     describe('GET /api/users/:id', () => {
-        it('should return user details with total costs', async () => {
+        it('should return user details', async () => {
             const response = await request(app)
                 .get('/api/users/123123');
 
@@ -204,7 +256,6 @@ describe('Cost Manager API Tests', () => {
             expect(response.body).toHaveProperty('first_name', 'mosh');
             expect(response.body).toHaveProperty('last_name', 'israeli');
             expect(response.body).toHaveProperty('id', '123123');
-            expect(response.body).toHaveProperty('total', 150);
         });
 
         it('should return 404 for non-existent user', async () => {

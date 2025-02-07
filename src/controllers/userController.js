@@ -19,7 +19,6 @@ export const getUserDetails = async (req, res) => {
             id: user.id,
             first_name: user.first_name,
             last_name: user.last_name,
-            total: user.total // Using virtual getter
         });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -39,7 +38,6 @@ export const createUser = async (req, res) => {
         last_name,
         birthday: new Date(birthday),
         marital_status,
-        total_costs: 0
     });
 
     try {

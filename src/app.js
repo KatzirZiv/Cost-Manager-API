@@ -22,21 +22,7 @@ app.use(express.json());
 // Connect to MongoDB Atlas
 mongoose.connect(URL).then(() => console.log("Connected to Database")).catch((error)=> console.log(`Error: ${error}`));
 
-/**
- * Express error handling middleware for MongoDB errors
- * @function
- * @param {Error} err - Error object
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next middleware function
- */
 
-app.use((err, req, res, next) => {
-    if (err instanceof mongoose.Error) {
-        return res.status(500).json({ error: 'Database computation error' });
-    }
-    next(err);
-});
 // Define API routes
 app.use('/api', costRoutes);
 app.use('/api', userRoutes);
