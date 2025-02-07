@@ -1,53 +1,43 @@
 /**
- * @fileoverview User model schema definition and computed methods
+ * @fileoverview User model schema definition with computed pattern
  * @module models/users
  * @requires mongoose
  */
+
 import mongoose from "mongoose";
-/**
- * User Schema for MongoDB
- * @typedef {Object} UserSchema
- * @property {string} id - Unique identifier for the user
- * @property {string} first_name - User's first name
- * @property {string} last_name - User's last name
- * @property {Date} birthday - User's date of birth
- * @property {string} marital_status - User's marital status
- * @property {number} total_costs - Total costs accumulated by the user
- */
 
 const UserSchema = new mongoose.Schema({
     id: { type: String, required: true, unique: true },
-    first_name: { type: String, required: true},
-    last_name: { type: String, required: true},
-    birthday: {type: Date, required: true},
-    marital_status: {type: String, required: true},
-    total_costs: {type: Number, default: 0}
+    first_name: { type: String, required: true },
+    last_name: { type: String, required: true },
+    birthday: { type: Date, required: true },
+    marital_status: { type: String, required: true },
+    total_costs: { type: Number, default: 0 }
 });
-/**
- * Computes the total costs for a user
- * @async
- * @function computeTotalCosts
- * @param {string} userId - The ID of the user
- * @returns {Promise<number>} The total sum of all costs for the user
- */
 
-//computed property for total costs
+// Computed virtual fields
+UserSchema.virtual('total').get(function() {
+    return this.total_costs;
+});
+
+// Static method to compute total costs
 UserSchema.statics.computeTotalCosts = async function(userId) {
-    const costs = await mongoose.model('costs').find({ userid: userId });
-    return costs.reduce((total, cost) => total + cost.sum, 0);
+    const result = await mongoose.model('costs').aggregate([
+        { $match: { userid: String(userId) } },
+        { $group: { _id: null, total: { $sum: "$sum" } } }
+    ]);
+    return result.length ? result[0].total : 0;
 };
-/**
- * Updates the total costs for a user
- * @async
- * @method updateTotalCosts
- * @returns {Promise<Document>} The updated user document
- */
 
-//Method to update total costs
+// Keep the original updateTotalCosts method for test compatibility
 UserSchema.methods.updateTotalCosts = async function() {
     this.total_costs = await this.constructor.computeTotalCosts(this.id);
     return this.save();
 };
+
+// Include virtuals when converting to JSON
+UserSchema.set('toJSON', { virtuals: true });
+UserSchema.set('toObject', { virtuals: true });
 
 const User = mongoose.model("users", UserSchema);
 export default User;
